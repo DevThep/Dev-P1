@@ -13,6 +13,11 @@ def mkResumableRequest(serv,objName,file):
 	size = S.st_size
 	return ("GET {o} HTTP/1.1\r\n"+"Host: {s}\r\n"+"Range: bytes={h}-"+"\r\n\r\n").format(o=objName,s=serv,h=str(size))
 
+def storeURL(url,filename):
+	f = open("URL"+filename,"w")
+	f.write(url)
+	f.close()
+
 def writeHeader(serv,objName,header_file,port,timeout):
 	Head = open(header_file,"w+") # w+ both read and write
 	sock = sk.socket(sk.AF_INET,sk.SOCK_STREAM)
@@ -45,7 +50,6 @@ def writeFile(serv,objName,file,port,header_file,timeout):
 	try:
 		sock.connect((serv,port))
 		requestFile = mkDownloadRequest(serv,objName)
-		#requestFile = mkResumableRequest(serv,objName,'20000','30997')
 		sock.send(requestFile)
 		length = 0
 		while True:
@@ -60,8 +64,6 @@ def writeFile(serv,objName,file,port,header_file,timeout):
 	except sk.error, ex:
 		print "Caught exception socket.error : %s" % ex
 	f.close()
-	#print "File closed"
-	
 
 def NoHeaderFile(file,header_file): #split the main file from the header 
 	f = open(file,"r")
@@ -98,17 +100,6 @@ def isDL_complete(header_File,file): #check if download is complete
 	info = os.stat(file)
 	return info.st_size == int(C_len)
 
-website = "http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz"
-pic = "http://classroomclipart.com/images/gallery/Clipart/Animals/Lion_Clipart/TN_lion-clipart-115.jpg"
-servName ="intranet.mahidol"
-objName = "/"
-port = 80
-timeout = 6
-#writeHeader(servName,objName,"header.txt",port,timeout)
-#print getHeader("header.txt")[1]
-writeFile(servName,objName,"test.txt",port,"header.txt")
-#NoHeaderFile("test.txt","header.txt")
-#print isDL_complete(getHeader("header.txt")[1]["Content-Length"],"test.txt")
 def main(filename,url):
 	temp_filename = "DL" + filename
 	parsed = urlparse(url)
@@ -117,7 +108,34 @@ def main(filename,url):
 	Host_port = parsed.port
 	if Host_port == None:
 		Host_port = 80
+	toOverwrite = ""
+	if os.path.exists("DL"+filename): #if the partially downloaded file exists
+		f = open("URL"+filename,"r")
+		if url==f.readlines()[0]:#check if the same URL
+			print "Check if file modified using E-tags or Last Modified"
+			print "If True: re download the file"
+			print "Else:  Resume Download"
+	elif os.path.exists(filename):
+		print "File exists: Do you want to overwrite the file?"
+		while toOverwrite != "Y":
+			toOverwrite = raw_input("Do you want to overwrite the file? (Y/N)") 
+			if toOverwrite.upper() == "N":
+				print "Please Enter New Filename"
+				return
+		print "Overwriting the original file"
+	else:
+		print "Download File"
 
+website = "http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz"
+servName ="cs.muic.mahidol.ac.th"
+objName = "/~ktangwon/bigfile.xyz"
+port = 80
+timeout = 6
 
-#print main("test.txt",website)
+#writeHeader(servName,objName,"header.txt",port,timeout)
+#print getHeader("header.txt")[1]
+#writeFile(servName,objName,"test.txt",port,"header.txt",timeout)
+#NoHeaderFile("test.txt","header.txt")
+#print isDL_complete(getHeader("header.txt")[1]["Content-Length"],"test.txt")
+
 
