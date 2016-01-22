@@ -1,3 +1,4 @@
+#!usr/bin/env python
 import socket as sk 
 import os
 from urlparse import urlparse
@@ -8,10 +9,8 @@ def mkDownloadRequest(serv, objName):
 def mkHeadRequest(serv,objName):
 	return ("HEAD {o} HTTP/1.1\r\n"+"Host: {s}" +"\r\n\r\n").format(o=objName, s=serv)
 
-def mkResumableRequest(serv,objName,file):
-	S = os.stat(file)
-	size = S.st_size
-	return ("GET {o} HTTP/1.1\r\n"+"Host: {s}\r\n"+"Range: bytes={h}-"+"\r\n\r\n").format(o=objName,s=serv,h=str(size))
+def mkResumeRequest(serv,objName,start,stop):
+	return ("GET {o} HTTP/1.1\r\n"+"Host: {s}\r\n"+"Range: bytes={h}-{z}"+"\r\n\r\n").format(o=objName,s=serv,h=str(start),z=str(stop))
 
 def storeURL(url,filename):#store URL in another text file
 	f = open("URL"+filename,"w")
@@ -40,11 +39,11 @@ def writeHeader(serv,objName,header_file,port,timeout): #write header to HEAD + 
 		print "Caught exception socket.error : %s" % ex
 	Head.close()
 
-def writeFile(serv,objName,file,port,header_file,timeout): #write file to DL + filename
+def writeFile(serv,objName,filename,port,header_file,timeout): #write file to DL + filename
 	size_header = os.stat(header_file).st_size
 	content_len = getHeader(header_file)[1]["Content-Length"]
 	#print size_header , content_len
-	f = open(file,"w+") # w+ both read and write
+	f = open(filename,"w+") # w+ both read and write
 	sock = sk.socket(sk.AF_INET,sk.SOCK_STREAM)
 	sock.settimeout(timeout)
 	try:
@@ -66,11 +65,11 @@ def writeFile(serv,objName,file,port,header_file,timeout): #write file to DL + f
 		print "Caught exception socket.error : %s" % ex
 	f.close()
 
-def NoHeaderFile(file,header_file): #split the main file from the header 
+def NoHeaderFile(filename,header_file): #split the main file from the header 
 	f = open(file,"r")
 	lines = f.readlines()
 	f.close()
-	f = open(file,"w")
+	f = open(filename,"w")
 	header_count = getHeader(header_file)[0]
 	#print header_count
 	count = 0
@@ -96,11 +95,49 @@ def getHeader(filename): #Get the header dictionary	#returns tuple (line_count, 
 	f_open.close()
 	return count, dct
 
-def isDL_complete(header_File,file): #check if download is complete
+def isDL_complete(header_File,filename): #check if download is complete
 	C_len = getHeader(header_File)[1]["Content-Length"]
-	info = os.stat(file)
+	info = os.stat(filename)
 	print C_len, info.st_size
 	return info.st_size == int(C_len)
+
+def resumeDL(serv,path,old_file,temp_file,new_header,timeout):
+	#start at old file size
+	#end at content length
+	size_oldfile = os.stat(old_file).st_size #start
+	size_header = os.stat(new_header).st_size 
+	content_len = getHeader(new_header)[1]["Content-Length"] #stop
+	#print size_header , content_len
+	f = open(temp_file,"w+") # w+ both read and write
+	sock = sk.socket(sk.AF_INET,sk.SOCK_STREAM)
+	sock.settimeout(timeout)
+	try:
+		sock.connect((serv,port))
+		requestFile = mkResumeRequest(serv,path,size_oldfile,content_len)
+		sock.send(requestFile)
+		length = 0
+		while True:
+			data = sock.recv(1024)
+			length += len(data)
+			if (length-size_header)==int(content_len) and len(data)==0:
+				print length-size_header
+				sock.close()
+				break
+			f.write(data)
+	except sk.gaierror, e:
+		print "Error Connecting to Server"
+	except sk.error, ex:
+		print "Caught exception socket.error : %s" % ex
+	f.close()
+	#Remove header
+	NoHeaderFile(temp_file,new_header)
+	#Append to first file
+	filenames = [old_file,temp_file]
+	with open('path/to/output/file', 'w') as outfile:
+	    for fname in filenames:
+	        with open(fname) as infile:
+	            for line in infile:
+	                outfile.write(line)
 
 def main(filename,url):
 	temp_filename = "DL" + filename
@@ -116,9 +153,20 @@ def main(filename,url):
 		f = open("URL"+filename,"r")
 		check_url = f.readlines()[0]
 		if url==check_url:#check if the same URL
-			print "Check if file modified using E-tags or Last Modified"
-			print "If True: re download the file"
-			print "Else:  Resume Download"
+			writeHeader(Host_serv,Host_path,"NEWHEAD"+filename,Host_port,timeout)
+			new_info = getHeader("NEWHEAD"+filename)
+			old_info = getHeader("HEAD"+filename)
+			Changed = False
+			if "Etag" in (new_info[1] and old_info[1]):
+				if new_info[1]["Etag"]!=old_info[1]["Etag"]:
+					Changed = True
+			elif "Last-Modified" in (new_info[1] and old_info[1]):
+				if new_info[1]["Last-Modified"]!=old_info[1]["Last-Modified"]:
+					Changed = True
+			if Changed:
+				print "Redownload"
+			else:
+				print "Resume"
 		else: # Overwrite the file, the header file, the URL file
 			print "Overwrite"
 
@@ -159,8 +207,8 @@ objName = "/~ktangwon/bigfile.xyz"
 port = 80
 timeout = 6
 
-print main("test.txt","http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz")
-#writeHeader(servName,objName,"header.txt",port,timeout)
+#print main("test.txt","http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz")
+writeHeader(servName,objName,"header.txt",port,timeout)
 #print getHeader("header.txt")[1]
 #writeFile(servName,objName,"test.txt",port,"header.txt",timeout)
 #NoHeaderFile("test.txt","header.txt")
