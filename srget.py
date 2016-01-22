@@ -13,12 +13,12 @@ def mkResumableRequest(serv,objName,file):
 	size = S.st_size
 	return ("GET {o} HTTP/1.1\r\n"+"Host: {s}\r\n"+"Range: bytes={h}-"+"\r\n\r\n").format(o=objName,s=serv,h=str(size))
 
-def storeURL(url,filename):
+def storeURL(url,filename):#store URL in another text file
 	f = open("URL"+filename,"w")
 	f.write(url)
 	f.close()
 
-def writeHeader(serv,objName,header_file,port,timeout):
+def writeHeader(serv,objName,header_file,port,timeout): #write header to HEAD + filename
 	Head = open(header_file,"w+") # w+ both read and write
 	sock = sk.socket(sk.AF_INET,sk.SOCK_STREAM)
 	sock.settimeout(timeout)
@@ -40,10 +40,10 @@ def writeHeader(serv,objName,header_file,port,timeout):
 		print "Caught exception socket.error : %s" % ex
 	Head.close()
 
-def writeFile(serv,objName,file,port,header_file,timeout):
+def writeFile(serv,objName,file,port,header_file,timeout): #write file to DL + filename
 	size_header = os.stat(header_file).st_size
 	content_len = getHeader(header_file)[1]["Content-Length"]
-	print size_header , content_len
+	#print size_header , content_len
 	f = open(file,"w+") # w+ both read and write
 	sock = sk.socket(sk.AF_INET,sk.SOCK_STREAM)
 	sock.settimeout(timeout)
@@ -55,7 +55,8 @@ def writeFile(serv,objName,file,port,header_file,timeout):
 		while True:
 			data = sock.recv(1024)
 			length += len(data)
-			if (length-size_header)==int(content_len) or (length-size_header)==content_len:
+			if (length-size_header)==int(content_len) and len(data)==0:
+				print length-size_header
 				sock.close()
 				break
 			f.write(data)
@@ -96,8 +97,9 @@ def getHeader(filename): #Get the header dictionary	#returns tuple (line_count, 
 	return count, dct
 
 def isDL_complete(header_File,file): #check if download is complete
-	C_len = getHeader(header_File)[0]
+	C_len = getHeader(header_File)[1]["Content-Length"]
 	info = os.stat(file)
+	print C_len, info.st_size
 	return info.st_size == int(C_len)
 
 def main(filename,url):
@@ -109,12 +111,17 @@ def main(filename,url):
 	if Host_port == None:
 		Host_port = 80
 	toOverwrite = ""
+
 	if os.path.exists("DL"+filename): #if the partially downloaded file exists
 		f = open("URL"+filename,"r")
-		if url==f.readlines()[0]:#check if the same URL
+		check_url = f.readlines()[0]
+		if url==check_url:#check if the same URL
 			print "Check if file modified using E-tags or Last Modified"
 			print "If True: re download the file"
 			print "Else:  Resume Download"
+		else: # Overwrite the file, the header file, the URL file
+			print "Overwrite"
+
 	elif os.path.exists(filename):
 		print "File exists: Do you want to overwrite the file?"
 		while toOverwrite != "Y":
@@ -123,8 +130,28 @@ def main(filename,url):
 				print "Please Enter New Filename"
 				return
 		print "Overwriting the original file"
+
 	else:
 		print "Download File"
+		writeHeader(Host_serv,Host_path,"HEAD"+filename,Host_port,timeout)
+		a = open("HEAD"+filename,"r")
+		http_line =  a.readlines()[0]
+		print http_line
+		if http_line == "HTTP/1.1 200 OK\r\n":
+			storeURL(url,filename)
+			writeFile(Host_serv,Host_path,"DL"+filename,Host_port,"HEAD"+filename,timeout)
+			NoHeaderFile("DL"+filename,"HEAD"+filename)
+			isComplete = isDL_complete("HEAD"+filename,"DL"+filename)
+			print isComplete
+			if isComplete:
+				os.remove("HEAD"+filename)
+				os.remove("URL"+filename)
+				os.rename("DL"+filename,filename)
+				return "File Downloaded"
+		else:
+			return "error: ", http_line
+
+
 
 website = "http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz"
 servName ="cs.muic.mahidol.ac.th"
@@ -132,10 +159,11 @@ objName = "/~ktangwon/bigfile.xyz"
 port = 80
 timeout = 6
 
+print main("test.txt","http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz")
 #writeHeader(servName,objName,"header.txt",port,timeout)
 #print getHeader("header.txt")[1]
 #writeFile(servName,objName,"test.txt",port,"header.txt",timeout)
 #NoHeaderFile("test.txt","header.txt")
-#print isDL_complete(getHeader("header.txt")[1]["Content-Length"],"test.txt")
+#print isDL_complete("header.txt","test.txt")
 
 
