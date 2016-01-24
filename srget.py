@@ -267,7 +267,6 @@ def main(url,filename):
 	return "DOWNLOAD COMPLETE"
 
 # print main("http://math.hws.edu/eck/cs124/downloads/javanotes6-linked.pdf","java.pdf")
-print main("http://images.clipartpanda.com/lion-clipart-for-kids-lion-clip-art_1404121345.jpg","lion.jpg")
 # website = "http://images.clipartpanda.com/lion-clipart-for-kids-lion-clip-art_1404121345.jpg"
 #website = "http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz"
 #website = "http://math.hws.edu/eck/cs124/downloads/javanotes6-linked.pdf"
