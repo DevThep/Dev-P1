@@ -1,6 +1,8 @@
+#!/usr/bin/python
+from socket import *
 import socket as sk 
 import os
-import sys
+import sys,getopt
 from urlparse import urlparse
 
 def storeURL(url,filename):#store URL in another text file
@@ -27,16 +29,24 @@ def Download_Header(serv,objName,filename,port,request): #RETURN: header line co
 	temp = open(filename,"w+")
 	sock = sk.socket(sk.AF_INET,sk.SOCK_STREAM)
 	try:#try to connect
+		sock.settimeout(5)
 		sock.connect((serv,port))
 	except sk.error, e:
 		print  "Connection error"
 		os.remove(filename)
 		sys.exit(1)
-
+	except sk.gaierror:
+		print "Connection Timed Out"
+		sys.exit(1)
+	except KeyboardInterrupt:
+		os.remove(filename)
+		sys.exit(1)
 	try:#try to send request
 		sock.send(request)
 	except sk.error:
+		os.remove(filename)
 		print "Error sending server request"
+		sys.exit(1)
 
 	data = ""
 	while True:
@@ -44,6 +54,9 @@ def Download_Header(serv,objName,filename,port,request): #RETURN: header line co
 			data += sock.recv(1024)
 		except sk.error:
 			print "Error receiving header from server"
+			os.remove(filename)
+			sys.exit(1)
+		except KeyboardInterrupt:
 			os.remove(filename)
 			sys.exit(1)
 		if data[len(data)-4:len(data)] == "\r\n\r\n":
@@ -107,8 +120,14 @@ def download_file(serv,objName,filename,port,header_file,isContentLen,request):
 			if header_file[:3]=="NEW":
 				os.remove(header_file)
 			print "Error receiving content from server"
-			a = float(content_len)
-			b = os.path.getsize("DL"+filename[3:])
+			if filename[:3] != "NEW":
+				print filename
+				a = float(get_header("HEAD"+filename[2:])[1]["Content-Length"])
+				b = os.path.getsize(filename)
+			else:
+				print "DL"+filename[3:]
+				a = float(get_header("HEAD"+filename[3:])[1]["Content-Length"])
+				b = os.path.getsize("DL"+filename[3:])
 			print str((b/a)*100) + "% DOWNLOADED"
 			sys.exit(1)
 
@@ -121,20 +140,24 @@ def download_file(serv,objName,filename,port,header_file,isContentLen,request):
 			if header_file[:3]=="NEW":
 				os.remove(header_file)
 			print "User stopped download"
-			print "\n"+filename
-			a = float(content_len)
 			if filename[:3] != "NEW":
-				b = os.path.getsize("DL"+filename[2:])
+				print filename
+				a = float(get_header("HEAD"+filename[2:])[1]["Content-Length"])
+				b = os.path.getsize(filename)
 			else:
+				print "DL"+filename[3:]
+				a = float(get_header("HEAD"+filename[3:])[1]["Content-Length"])
 				b = os.path.getsize("DL"+filename[3:])
 			print str((b/a)*100) + "% DOWNLOADED"
 			sys.exit(1)
 			
 	else:#download till last 0
+		print "NO CONTENT LENGTH"
 		data = ""
 		try:
 			while True:
 				data += sock.recv(1024)
+				print len(data)
 				if "0\r\n\r\n" in data:
 					sock.close()
 					f.write(data)
@@ -142,13 +165,17 @@ def download_file(serv,objName,filename,port,header_file,isContentLen,request):
 				f.write(data)
 		except sk.error:
 			print "The url requested has no content length\n Have to restart the download!"
-			f.close()				
+			f.close()			
 			os.remove(filename)
+			os.remove("HEAD"+filename[2:])
+			os.remove("URL"+filename[2:])
 			sys.exit(1)
 		except KeyboardInterrupt:
 			print "The url requested has no content length\n Have to restart the download!"
-			f.close()				
+			f.close()
 			os.remove(filename)
+			os.remove("HEAD"+filename[2:])
+			os.remove("URL"+filename[2:])
 			sys.exit(1)
 		return "DOWNLOAD COMPLETED"
 	f.close()
@@ -237,13 +264,30 @@ def main(url,filename):
 
 			elif ("Last-Modified" in new_header_info) and ("Last-Modified" in old_header_info):
 				if new_header_info["Last-Modified"] == old_header_info["Last-Modified"]:
-					return "NOT MODIFIED: Resuming Download"
-			else:
-				print "Restarting Download"
+					print "NOT MODIFIED: Resuming Download"
+					download("NEW"+filename,"NEWHEAD"+filename,Host_serv,Host_path,Host_port,None,resumeHead,resumeReq,url)
+					append_file("DL"+filename,"NEW"+filename)
+					if os.path.exists("URL"+filename):
+						os.remove("URL"+filename)
+					if os.path.exists("HEAD"+filename):
+						os.remove("HEAD"+filename)
+					os.rename("DL"+filename,filename)
+					print "Resumed Download Complete"
+					return "Resumed Download Complete"
+
+			print "Restarting Download"
+			if os.path.exists("DL"+filename):
+				os.remove("DL"+filename)
+			if os.path.exists("NEWHEAD"+filename):
+				os.remove("NEWHEAD"+filename)
+			if os.path.exists("HEAD"+filename):
+				os.remove("HEAD"+filename)
+			if os.path.exists("URL"+filename):
+				os.remove("URL"+filename)
 			#contentL = get_header("new_header.txt")[1]["Content-Length"]
 			#download_file(serv,page,"res_file.txt",80,"new_header.txt",contentL,resumeReq)
 			#NoHeaderFile("res_file.txt",get_header("new_header.txt")[0])
-		return
+
 
 	elif os.path.exists(filename): #if same file name exists : chose to overwrite
 		print "File exists: Do you want to overwrite the file?"
@@ -264,9 +308,28 @@ def main(url,filename):
 	download("DL"+filename,"HEAD"+filename,Host_serv,Host_path,Host_port,None,request_head,request_dl,url)
 	os.remove("URL"+filename)
 	os.rename("DL"+filename,filename)
+	print "DOWNLOAD COMPLETE"
 	return "DOWNLOAD COMPLETE"
 
-# print main("http://math.hws.edu/eck/cs124/downloads/javanotes6-linked.pdf","java.pdf")
+# print main("http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz","test.xyz")
+if __name__ == "__main__":
+	argument = sys.argv[1:]
+	if len(argument)==3 and argument[1]=="-o":
+		url=argument[-1]
+		if "http://" not in url:
+			print "Enter valid url"
+			print "Usage: ./srget.py <output file> -o <url>"
+			sys.exit(1)
+		filename = argument[0]
+		url = argument[2]
+	else:
+		print "Usage: ./srget.py <output file> -o <url>"
+		sys.exit(1)
+	# print filename,url
+	main(url,filename)
+
+# print os.path.getsize("test.xyz")
+# print main("http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz,"test.xyz")
 # website = "http://images.clipartpanda.com/lion-clipart-for-kids-lion-clip-art_1404121345.jpg"
 #website = "http://cs.muic.mahidol.ac.th/~ktangwon/bigfile.xyz"
 #website = "http://math.hws.edu/eck/cs124/downloads/javanotes6-linked.pdf"
@@ -286,7 +349,6 @@ def main(url,filename):
 #print os.path.getsize("file.txt")
 
 #start = os.path.getsize("file.txt")
-#print start
 #resumeHead = ("HEAD {o} HTTP/1.1\r\n"+"Host: {s}\r\n"+"Range: bytes={h}-"+"\r\n\r\n").format(o=page,s=serv,h=str(start))
 #resumeReq = ("GET {o} HTTP/1.1\r\n"+"Host: {s}\r\n"+"Range: bytes={h}-"+"\r\n\r\n").format(o=page,s=serv,h=str(start))
 #Download_Header(serv,page,"new_header.txt",80,resumeHead)
