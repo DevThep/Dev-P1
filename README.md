@@ -18,6 +18,8 @@ Downloading Using More than one Connection:
 1. Utilized asyncore
 2. Split the file into different partitions according to the size. All the connections specified will work on each partition before moving on to another partition.
 
+Download using more than one connection also uses pickles.
+
 -------------------------------------------
 
 Features Supported:
