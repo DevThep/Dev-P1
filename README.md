@@ -19,6 +19,7 @@ Downloading Using More than one Connection:
 2. Split the file into different partitions according to the size. All the connections specified will work on each partition before moving on to another partition.
 
 -------------------------------------------
+
 Features Supported:
 	Can increase and decrease the number of connections use.
 	HTTP status code handling
@@ -27,6 +28,7 @@ Not Supported:
 	Cannot switch from many connections down to normal 1 connection without asyncio.
 	Chunked Transfer Encoding
 	Scenario when no Content Length available
+	
 -------------------------------------------
 
 - Usage: ./srget.py -o <output file> <url>
