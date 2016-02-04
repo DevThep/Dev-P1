@@ -28,7 +28,7 @@ Features Supported:
 3. URL Redirection
 
 Not Supported:
-1. Cannot switch from many connections down to normal 1 connection without asyncio.
+1. If downloaded using many connections, have to use -c to continue downloading. Cannot switch to normal non-concurrent download.
 2. Chunked Transfer Encoding
 3. Scenario when no Content Length available
 	
