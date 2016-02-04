@@ -21,18 +21,19 @@ Downloading Using More than one Connection:
 -------------------------------------------
 
 Features Supported:
-	Can increase and decrease the number of connections use.
-	HTTP status code handling
-	URL Redirection
+1. Can increase and decrease the number of connections use.
+2. HTTP status code handling
+3. URL Redirection
+
 Not Supported:
-	Cannot switch from many connections down to normal 1 connection without asyncio.
-	Chunked Transfer Encoding
-	Scenario when no Content Length available
+1. Cannot switch from many connections down to normal 1 connection without asyncio.
+2. Chunked Transfer Encoding
+3. Scenario when no Content Length available
 	
 -------------------------------------------
 
-- Usage: ./srget.py -o <output file> <url>
-- Usage: ./srget.py -o -c <numConn> <output file> <url>
+- Usage: ./srget.py -o [output file] [url]
+- Usage: ./srget.py -o -c [numConn] [output file] [url]
 
 Thank you for reading this.
 Starting early for the next one :)
